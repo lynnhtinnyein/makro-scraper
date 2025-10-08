@@ -1,5 +1,5 @@
 {
-  "name": "makro-import-server",
+  "name": "makro-scraper",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
