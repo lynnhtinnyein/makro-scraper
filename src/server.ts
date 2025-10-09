@@ -11,6 +11,16 @@ const environment = process.env.NODE_ENV || "development";
 const envFile = `.env.${environment}`;
 dotenv.config({ path: envFile });
 
+const uatApiUrl = process.env.NEONMALL_UAT_API_URL;
+const prodApiUrl = process.env.NEONMALL_PROD_API_URL;
+
+export function getApiUrl(origin?: string): string {
+	if (!uatApiUrl || !prodApiUrl) {
+		throw new Error("NEONMALL_UAT_API_URL and NEONMALL_PROD_API_URL must be set in environment variables");
+	}
+	return origin && origin.includes("admin.neonmall.co") ? prodApiUrl : uatApiUrl;
+}
+
 const app = express();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : ["*"];
@@ -55,6 +65,10 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
 	if (!token || !productGroups || !Array.isArray(productGroups)) {
 		return res.status(400).json({ error: "Token and productGroups are required" });
 	}
+	
+	const origin = req.get('origin') || req.get('referer');
+	const apiUrl = getApiUrl(origin);
+	
 	let addedCount = 0;
 	const errors: Array<{ url: string; error: string }> = [];
 	try {
@@ -71,10 +85,11 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
 							token,
 							product,
 							{ mainCategoryId, subCategoryId, categoryId, sellerId },
-							productAttributeValueId
+							productAttributeValueId,
+							apiUrl
 						);
 						if (productId && product.images?.length > 0) {
-							await uploadProductImages(token, productId, product.images);
+							await uploadProductImages(token, productId, product.images, apiUrl);
 						}
 						return { success: true };
 					})
