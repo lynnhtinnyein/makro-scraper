@@ -18,7 +18,7 @@ export function getApiUrl(origin?: string): string {
 	if (!uatApiUrl || !prodApiUrl) {
 		throw new Error("NEONMALL_UAT_API_URL and NEONMALL_PROD_API_URL must be set in environment variables");
 	}
-	return origin && origin.includes("admin.neonmall.co") ? prodApiUrl : uatApiUrl;
+	return origin && origin.includes("admin.neonmall.co") ? prodApiUrl : uatApiUrl; 
 }
 
 const app = express();

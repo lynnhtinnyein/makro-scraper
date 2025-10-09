@@ -14,7 +14,8 @@ export async function submitProduct(
 	token: string,
 	productData: TransformedProduct,
 	categoryIds: CategoryIds,
-	productAttributeValueId: number | string
+	productAttributeValueId: number | string,
+	apiUrl: string
 ): Promise<number> {
 	const payload = {
 		productDTO: {
@@ -55,7 +56,7 @@ export async function submitProduct(
 		]
 	};
 	const response = await axiosInstance.post(
-		"https://api.ecommerce.neon-xpress.com/v1/api/product/saveWithVariants",
+		`${apiUrl}/v1/api/product/saveWithVariants`,
 		payload,
 		{ headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
 	);
@@ -65,7 +66,8 @@ export async function submitProduct(
 export async function uploadProductImages(
 	token: string,
 	productId: number | string,
-	imageUrls: string[]
+	imageUrls: string[],
+	apiUrl: string
 ): Promise<{ uploaded: number; errors: Array<{ imageUrl: string; error: string }> }> {
 	const maxImages = 8;
 	const imagesToUpload = imageUrls.slice(0, maxImages);
@@ -76,7 +78,7 @@ export async function uploadProductImages(
 		const promises = batch.map((imageUrl) =>
 			axiosInstance
 				.post(
-					"https://api.ecommerce.neon-xpress.com/v1/api/product-image/save-image-url",
+					`${apiUrl}/v1/api/product-image/save-image-url`,
 					{ productId, imageUrl },
 					{ headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
 				)

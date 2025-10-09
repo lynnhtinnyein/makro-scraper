@@ -8,3 +8,5 @@ dist/
 .env.production.local
 .DS_Store
 *.tsbuildinfo
+.env.development
+.env.production
