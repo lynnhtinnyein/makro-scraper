@@ -7,7 +7,7 @@ function transformProductData(details) {
     const sku = (0, parsers_1.getPrefixedSku)(details);
     // const pricePerUnit = extractPricePerUnit(details.pricePerUnit);
     return {
-        name: (0, parsers_1.cleanProductName)(details.title),
+        name: details.title,
         brand: details.brand || null,
         url: details.url,
         images: details.images || [],

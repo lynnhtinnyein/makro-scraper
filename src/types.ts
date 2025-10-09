@@ -29,7 +29,7 @@ export interface ProductDetailRaw {
     brand: string;
     pricePerUnit: string;
     originalPrice: number;
-    discountPrice: number;
+    discountedPrice: number;
     code: string;
     discountPercent: number;
     specifications: Record<string, string>;

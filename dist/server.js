@@ -12,6 +12,7 @@ const browser_1 = require("./lib/browser");
 const scraper_1 = require("./services/scraper");
 const transform_1 = require("./lib/transform");
 const submit_1 = require("./services/submit");
+const utils_1 = require("./lib/utils");
 const environment = process.env.NODE_ENV || "development";
 const envFile = `.env.${environment}`;
 dotenv_1.default.config({ path: envFile });
@@ -42,7 +43,11 @@ app.get("/health", async (_req, res) => {
         message: "Makro Scraper API is running",
         status: "ok",
         poolSize: (0, browser_1.getPoolSize)(),
-        endpoints: { getProductList: "/api/products/list", submitProducts: "/api/products/submit" }
+        endpoints: {
+            getProductList: "/api/products/list",
+            getSingleProduct: "/api/products/single",
+            submitProducts: "/api/products/submit"
+        }
     });
 });
 app.post("/api/products/list", async (req, res) => {
@@ -56,6 +61,27 @@ app.post("/api/products/list", async (req, res) => {
     }
     catch (error) {
         console.error("Product list endpoint error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+app.post("/api/products/single", async (req, res) => {
+    const { url } = req.body;
+    if (!url)
+        return res.status(400).json({ error: "URL parameter is required" });
+    try {
+        const product = await (0, scraper_1.scrapeProductDetail)(url);
+        const singleProduct = {
+            name: product.title,
+            image: product.images[0] || null,
+            originalPrice: product.originalPrice,
+            discountedPrice: product.discountedPrice === 0 ? product.originalPrice : product.discountedPrice,
+            discountPercent: product.discountPercent,
+            url: (0, utils_1.cleanUpUrl)(product.url)
+        };
+        res.json(singleProduct);
+    }
+    catch (error) {
+        console.error("Single product endpoint error:", error);
         res.status(500).json({ error: error.message });
     }
 });

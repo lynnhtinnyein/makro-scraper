@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.extractDimensions = extractDimensions;
 exports.extractPricePerUnit = extractPricePerUnit;
-exports.cleanProductName = cleanProductName;
+exports.parseToSingleProductName = parseToSingleProductName;
 exports.getPrefixedSku = getPrefixedSku;
 function extractDimensions(volumeText) {
     const dimensions = { length: null, width: null, height: null, weight: null };
@@ -24,7 +24,9 @@ function extractPricePerUnit(priceText) {
     const match = priceText.match(/([\d,]+(?:\.[\d]+)?)/);
     return match ? parseFloat(match[1].replace(/,/g, "")) : null;
 }
-function cleanProductName(name) {
+//not in used
+// remove quantity suffix like " x 4"
+function parseToSingleProductName(name) {
     return name ? name.replace(/\s*x\s*\d+\s*$/i, "").trim() : name;
 }
 function getPrefixedSku(details) {

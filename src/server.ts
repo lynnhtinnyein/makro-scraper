@@ -6,6 +6,7 @@ import { getPoolSize, closeAll } from "./lib/browser";
 import { scrapeProductList, scrapeProductDetail } from "./services/scraper";
 import { transformProductData } from "./lib/transform";
 import { submitProduct, uploadProductImages } from "./services/submit";
+import { cleanUpUrl } from "./lib/utils";
 
 const environment = process.env.NODE_ENV || "development";
 const envFile = `.env.${environment}`;
@@ -45,7 +46,11 @@ app.get("/health", async (_req: Request, res: Response) => {
         message: "Makro Scraper API is running",
         status: "ok",
         poolSize: getPoolSize(),
-        endpoints: { getProductList: "/api/products/list", submitProducts: "/api/products/submit" }
+        endpoints: {
+            getProductList: "/api/products/list",
+            getSingleProduct: "/api/products/single",
+            submitProducts: "/api/products/submit"
+        }
     });
 });
 
@@ -58,6 +63,27 @@ app.post("/api/products/list", async (req: Request, res: Response) => {
         res.json(products);
     } catch (error: any) {
         console.error("Product list endpoint error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post("/api/products/single", async (req: Request, res: Response) => {
+    const { url } = req.body as { url?: string };
+    if (!url) return res.status(400).json({ error: "URL parameter is required" });
+    try {
+        const product = await scrapeProductDetail(url);
+        const singleProduct = {
+            name: product.title,
+            image: product.images[0] || null,
+            originalPrice: product.originalPrice,
+            discountedPrice:
+                product.discountedPrice === 0 ? product.originalPrice : product.discountedPrice,
+            discountPercent: product.discountPercent,
+            url: cleanUpUrl(product.url)
+        };
+        res.json(singleProduct);
+    } catch (error: any) {
+        console.error("Single product endpoint error:", error);
         res.status(500).json({ error: error.message });
     }
 });
