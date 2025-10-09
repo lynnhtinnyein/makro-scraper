@@ -1,10 +1,11 @@
-import { extractDimensions, extractPrice, getOriginalPrice, cleanProductName } from "./parsers";
+import { extractDimensions, cleanProductName, getPrefixedSku } from "./parsers";
 import { ProductDetailRaw, TransformedProduct } from "../types";
 
 export function transformProductData(details: ProductDetailRaw): TransformedProduct {
     const dimensions = extractDimensions(details.specifications["Total volume"]);
-    const pricePerUnit = extractPrice(details.pricePerUnit);
-    const originalPrice = getOriginalPrice(pricePerUnit, details.discountPercent || 0);
+    const sku = getPrefixedSku(details);
+    // const pricePerUnit = extractPricePerUnit(details.pricePerUnit);
+	
     return {
         name: cleanProductName(details.title),
         brand: details.brand || null,
@@ -12,8 +13,8 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
         images: details.images || [],
         variant: {
             image: details.images?.[0] || null,
-            price: originalPrice,
-            sku: (details as any).code || details.specifications["SKU"] || null,
+            price: details.originalPrice,
+            sku: sku,
             discount: details.discountPercent || 0,
             length: dimensions.length,
             width: dimensions.width,

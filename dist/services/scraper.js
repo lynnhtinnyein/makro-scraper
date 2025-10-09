@@ -44,19 +44,26 @@ async function scrapeProductList(url, maxProducts = 20) {
                                 continue;
                         }
                     }
-                    const nameElement = el.querySelector('[data-test-id*="title"]') || el.querySelector("h2") || el.querySelector("h3") || el.querySelector('[class*="title"]');
+                    const nameElement = el.querySelector('[data-test-id*="title"]') ||
+                        el.querySelector("h2") ||
+                        el.querySelector("h3") ||
+                        el.querySelector('[class*="title"]');
                     const name = nameElement?.textContent?.trim() || "";
                     const imgElement = el.querySelector("img");
                     let image = "";
                     if (imgElement) {
-                        const src = imgElement.src || imgElement.dataset?.src || imgElement.srcset;
+                        const src = imgElement.src ||
+                            imgElement.dataset?.src ||
+                            imgElement.srcset;
                         if (src)
                             image = src.split(" ")[0].split("?")[0];
                     }
                     const linkElement = el.querySelector("a");
                     const link = linkElement?.href || "";
                     if (link && name) {
-                        const cleanUrl = link.startsWith("http") ? link : `https://www.makro.pro${link}`;
+                        const cleanUrl = link.startsWith("http")
+                            ? link
+                            : `https://www.makro.pro${link}`;
                         results.push({ name, price, image, url: cleanUrl.split("?")[0] });
                     }
                 }
@@ -89,7 +96,33 @@ async function scrapeProductDetail(url) {
             const pricePerUnit = getText('[data-test-id="price_unit_title"]');
             const codeText = getText('[data-test-id="makro_code_title"]');
             const code = codeText.replace("Code :", "").trim();
+            let originalPrice = 0;
+            let discountPrice = 0;
             let discountPercent = 0;
+            const originalPriceEl = document.querySelector('[data-test-id*="_original_price"]');
+            if (originalPriceEl?.textContent) {
+                const priceMatch = originalPriceEl.textContent
+                    .replace(/[฿,\s]/g, "")
+                    .match(/[\d.]+/);
+                if (priceMatch)
+                    originalPrice = parseFloat(priceMatch[0]);
+            }
+            const discountPriceEl = document.querySelector('[data-test-id*="_discount_price"]');
+            if (discountPriceEl?.textContent) {
+                const priceText = discountPriceEl.textContent.replace(/[฿,\s]/g, "");
+                const priceMatch = priceText.match(/[\d.]+/);
+                if (priceMatch)
+                    discountPrice = parseFloat(priceMatch[0]);
+            }
+            if (originalPrice === 0) {
+                const regularPriceEl = document.querySelector('[data-test-id*="_price"]');
+                if (regularPriceEl?.textContent) {
+                    const priceText = regularPriceEl.textContent.replace(/[฿,\s]/g, "");
+                    const priceMatch = priceText.match(/[\d.]+/);
+                    if (priceMatch)
+                        originalPrice = parseFloat(priceMatch[0]);
+                }
+            }
             const discountEl = document.querySelector('[data-test-id*="_discount_percent"]');
             if (discountEl?.textContent) {
                 const match = discountEl.textContent.match(/-?(\d+)%/);
@@ -132,8 +165,8 @@ async function scrapeProductDetail(url) {
                     specItems.forEach((item) => {
                         const divs = item.querySelectorAll('[class*="css-0"]');
                         if (divs.length >= 2) {
-                            const key = (divs[0].textContent || '').trim();
-                            const value = (divs[1].textContent || '').trim();
+                            const key = (divs[0].textContent || "").trim();
+                            const value = (divs[1].textContent || "").trim();
                             if (key && value)
                                 specifications[key] = value;
                         }
@@ -158,7 +191,8 @@ async function scrapeProductDetail(url) {
                         const src = anyImg.src || anyImg.dataset?.src || anyImg.srcset;
                         if (src?.includes("http")) {
                             const cleanSrc = src.split(" ")[0].split("?")[0];
-                            if (cleanSrc.includes("product-images") || cleanSrc.includes("siammakro.cloud")) {
+                            if (cleanSrc.includes("product-images") ||
+                                cleanSrc.includes("siammakro.cloud")) {
                                 images.add(cleanSrc);
                             }
                         }
@@ -171,12 +205,27 @@ async function scrapeProductDetail(url) {
                 document.querySelectorAll("img").forEach((img) => {
                     const anyImg = img;
                     const src = anyImg.src || anyImg.dataset?.src;
-                    if (src?.includes("http") && !src.includes("icon") && !src.includes("logo") && !src.includes("ribbon") && (src.includes("product-images") || src.includes("siammakro.cloud"))) {
+                    if (src?.includes("http") &&
+                        !src.includes("icon") &&
+                        !src.includes("logo") &&
+                        !src.includes("ribbon") &&
+                        (src.includes("product-images") || src.includes("siammakro.cloud"))) {
                         images.add(src.split("?")[0]);
                     }
                 });
             }
-            return { title, brand, pricePerUnit, code, discountPercent, specifications, images: Array.from(images), url: window.location.href };
+            return {
+                title,
+                brand,
+                pricePerUnit,
+                code,
+                originalPrice,
+                discountPrice,
+                discountPercent,
+                specifications,
+                images: Array.from(images),
+                url: window.location.href
+            };
         });
         return productDetail;
     }

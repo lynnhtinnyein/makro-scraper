@@ -1,4 +1,4 @@
-import { Dimensions } from "../types";
+import { Dimensions, ProductDetailRaw } from "../types";
 
 export function extractDimensions(volumeText: string | undefined): Dimensions {
     const dimensions: Dimensions = { length: null, width: null, height: null, weight: null };
@@ -13,22 +13,18 @@ export function extractDimensions(volumeText: string | undefined): Dimensions {
     return dimensions;
 }
 
-export function extractPrice(priceText: string | undefined): number | null {
+//not in used
+export function extractPricePerUnit(priceText: string | undefined): number | null {
     if (!priceText) return null;
     const match = priceText.match(/([\d,]+(?:\.[\d]+)?)/);
     return match ? parseFloat(match[1].replace(/,/g, "")) : null;
 }
 
-export function getOriginalPrice(
-    discountedPrice: number | null,
-    discountPercent: number | undefined
-): number | null {
-    if (discountedPrice == null) return null;
-    const discountRate = 1 - (discountPercent || 0) / 100;
-    const originalPrice = discountedPrice / discountRate;
-    return parseFloat(originalPrice.toFixed(2));
-}
-
 export function cleanProductName(name: string | null | undefined): string | null | undefined {
     return name ? name.replace(/\s*x\s*\d+\s*$/i, "").trim() : name;
+}
+
+export function getPrefixedSku(details: ProductDetailRaw): string | null {
+    const code = details?.code || details?.specifications?.["SKU"] || null;
+    return code ? `MK${code}` : null;
 }

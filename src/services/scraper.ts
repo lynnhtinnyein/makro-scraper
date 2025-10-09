@@ -100,7 +100,35 @@ export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw
             const pricePerUnit = getText('[data-test-id="price_unit_title"]');
             const codeText = getText('[data-test-id="makro_code_title"]');
             const code = codeText.replace("Code :", "").trim();
+
+            let originalPrice = 0;
+            let discountPrice = 0;
             let discountPercent = 0;
+
+            const originalPriceEl = document.querySelector('[data-test-id*="_original_price"]');
+            if (originalPriceEl?.textContent) {
+                const priceMatch = originalPriceEl.textContent
+                    .replace(/[฿,\s]/g, "")
+                    .match(/[\d.]+/);
+                if (priceMatch) originalPrice = parseFloat(priceMatch[0]);
+            }
+
+            const discountPriceEl = document.querySelector('[data-test-id*="_discount_price"]');
+            if (discountPriceEl?.textContent) {
+                const priceText = discountPriceEl.textContent.replace(/[฿,\s]/g, "");
+                const priceMatch = priceText.match(/[\d.]+/);
+                if (priceMatch) discountPrice = parseFloat(priceMatch[0]);
+            }
+
+            if (originalPrice === 0) {
+                const regularPriceEl = document.querySelector('[data-test-id*="_price"]');
+                if (regularPriceEl?.textContent) {
+                    const priceText = regularPriceEl.textContent.replace(/[฿,\s]/g, "");
+                    const priceMatch = priceText.match(/[\d.]+/);
+                    if (priceMatch) originalPrice = parseFloat(priceMatch[0]);
+                }
+            }
+
             const discountEl = document.querySelector('[data-test-id*="_discount_percent"]');
             if (discountEl?.textContent) {
                 const match = discountEl.textContent.match(/-?(\d+)%/);
@@ -197,6 +225,8 @@ export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw
                 brand,
                 pricePerUnit,
                 code,
+                originalPrice,
+                discountPrice,
                 discountPercent,
                 specifications,
                 images: Array.from(images),

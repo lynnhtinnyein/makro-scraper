@@ -64,7 +64,7 @@ app.post("/api/products/submit", async (req, res) => {
     if (!token || !productGroups || !Array.isArray(productGroups)) {
         return res.status(400).json({ error: "Token and productGroups are required" });
     }
-    const origin = req.get('origin') || req.get('referer');
+    const origin = req.get("origin") || req.get("referer");
     const apiUrl = getApiUrl(origin);
     let addedCount = 0;
     const errors = [];
@@ -84,11 +84,15 @@ app.post("/api/products/submit", async (req, res) => {
                     return { success: true };
                 }));
                 results.forEach((result, idx) => {
-                    if (result.status === "fulfilled" && result.value.success) {
+                    if (result.status === "fulfilled" &&
+                        result.value.success) {
                         addedCount++;
                     }
                     else {
-                        errors.push({ url: batch[idx], error: result.reason?.message || "Unknown error" });
+                        errors.push({
+                            url: batch[idx],
+                            error: result.reason?.message || "Unknown error"
+                        });
                     }
                 });
             }

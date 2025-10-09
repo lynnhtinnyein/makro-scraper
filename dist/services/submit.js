@@ -64,7 +64,12 @@ async function uploadProductImages(token, productId, imageUrls, apiUrl) {
     for (let i = 0; i < imagesToUpload.length; i += concurrency) {
         const batch = imagesToUpload.slice(i, i + concurrency);
         const promises = batch.map((imageUrl) => axiosInstance
-            .post(`${apiUrl}/v1/api/product-image/save-image-url`, { productId, imageUrl }, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } })
+            .post(`${apiUrl}/v1/api/product-image/save-image-url`, { productId, imageUrl }, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        })
             .catch((error) => {
             errors.push({ imageUrl, error: error.message });
             return null;

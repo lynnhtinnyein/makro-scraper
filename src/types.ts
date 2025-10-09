@@ -28,6 +28,8 @@ export interface ProductDetailRaw {
     title: string;
     brand: string;
     pricePerUnit: string;
+    originalPrice: number;
+    discountPrice: number;
     code: string;
     discountPercent: number;
     specifications: Record<string, string>;

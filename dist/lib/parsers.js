@@ -1,9 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.extractDimensions = extractDimensions;
-exports.extractPrice = extractPrice;
-exports.getOriginalPrice = getOriginalPrice;
+exports.extractPricePerUnit = extractPricePerUnit;
 exports.cleanProductName = cleanProductName;
+exports.getPrefixedSku = getPrefixedSku;
 function extractDimensions(volumeText) {
     const dimensions = { length: null, width: null, height: null, weight: null };
     if (!volumeText)
@@ -17,19 +17,17 @@ function extractDimensions(volumeText) {
     }
     return dimensions;
 }
-function extractPrice(priceText) {
+//not in used
+function extractPricePerUnit(priceText) {
     if (!priceText)
         return null;
     const match = priceText.match(/([\d,]+(?:\.[\d]+)?)/);
     return match ? parseFloat(match[1].replace(/,/g, "")) : null;
 }
-function getOriginalPrice(discountedPrice, discountPercent) {
-    if (discountedPrice == null)
-        return null;
-    const discountRate = 1 - (discountPercent || 0) / 100;
-    const originalPrice = discountedPrice / discountRate;
-    return parseFloat(originalPrice.toFixed(2));
-}
 function cleanProductName(name) {
     return name ? name.replace(/\s*x\s*\d+\s*$/i, "").trim() : name;
+}
+function getPrefixedSku(details) {
+    const code = details?.code || details?.specifications?.["SKU"] || null;
+    return code ? `MK${code}` : null;
 }
