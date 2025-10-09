@@ -56,7 +56,7 @@ export async function submitProduct(
         ]
     };
     const response = await axiosInstance.post(
-        `${apiUrl}/v1/api/product/saveWithVariants`,
+        `${apiUrl}/product/saveWithVariants`,
         payload,
         { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
     );
@@ -78,7 +78,7 @@ export async function uploadProductImages(
         const promises = batch.map((imageUrl) =>
             axiosInstance
                 .post(
-                    `${apiUrl}/v1/api/product-image/save-image-url`,
+                    `${apiUrl}/product-image/save-image-url`,
                     { productId, imageUrl },
                     {
                         headers: {

@@ -53,7 +53,7 @@ async function submitProduct(token, productData, categoryIds, productAttributeVa
             }
         ]
     };
-    const response = await axiosInstance.post(`${apiUrl}/v1/api/product/saveWithVariants`, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
+    const response = await axiosInstance.post(`${apiUrl}/product/saveWithVariants`, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
     return response.data.productDTO.id;
 }
 async function uploadProductImages(token, productId, imageUrls, apiUrl) {
@@ -64,7 +64,7 @@ async function uploadProductImages(token, productId, imageUrls, apiUrl) {
     for (let i = 0; i < imagesToUpload.length; i += concurrency) {
         const batch = imagesToUpload.slice(i, i + concurrency);
         const promises = batch.map((imageUrl) => axiosInstance
-            .post(`${apiUrl}/v1/api/product-image/save-image-url`, { productId, imageUrl }, {
+            .post(`${apiUrl}/product-image/save-image-url`, { productId, imageUrl }, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json"

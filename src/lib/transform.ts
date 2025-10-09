@@ -1,13 +1,13 @@
-import { extractDimensions, cleanProductName, getPrefixedSku } from "./parsers";
+import { extractDimensions, getPrefixedSku } from "./parsers";
 import { ProductDetailRaw, TransformedProduct } from "../types";
 
 export function transformProductData(details: ProductDetailRaw): TransformedProduct {
     const dimensions = extractDimensions(details.specifications["Total volume"]);
     const sku = getPrefixedSku(details);
     // const pricePerUnit = extractPricePerUnit(details.pricePerUnit);
-	
+
     return {
-        name: cleanProductName(details.title),
+        name: details.title,
         brand: details.brand || null,
         url: details.url,
         images: details.images || [],
