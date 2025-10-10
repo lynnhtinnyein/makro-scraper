@@ -69,15 +69,34 @@ export async function submitProduct(
     } catch (error: any) {
         if (error.response) {
             const status = error.response.status;
-            const message =
-                error.response.data?.message ||
-                error.response.data?.error ||
-                error.response.statusText;
-            throw new Error(`API Error (${status}): ${message}`);
+            const data = error.response.data;
+
+            let message = "Unknown product submission error";
+
+            if (typeof data === "string") {
+                message = data;
+            } else if (data) {
+                message =
+                    data.message ||
+                    data.error ||
+                    data.errors?.[0]?.message ||
+                    data.errors?.[0] ||
+                    data.detail ||
+                    data.title ||
+                    JSON.stringify(data);
+            }
+
+            if (!message || message === "Unknown product submission error") {
+                message = error.response.statusText || "Request failed";
+            }
+
+            throw new Error(`Product Submit Error (${status}): ${message}`);
         } else if (error.request) {
-            throw new Error("No response from server - network error");
+            throw new Error(`No response from server: ${error.message || "Network error"}`);
+        } else if (error.message) {
+            throw new Error(`Request setup failed: ${error.message}`);
         } else {
-            throw new Error(error.message || "Failed to submit product");
+            throw new Error(`Unknown product submission error: ${JSON.stringify(error)}`);
         }
     }
 }
