@@ -15,46 +15,68 @@ const axiosInstance = axios_1.default.create({
     httpsAgent: new https_1.default.Agent({ keepAlive: true })
 });
 async function submitProduct(token, productData, categoryIds, productAttributeValueId, apiUrl) {
-    const payload = {
-        productDTO: {
-            name: productData.name,
-            nameThai: "",
-            nameBurmese: "",
-            brand: productData.brand || "",
-            description: productData.name,
-            descriptionThai: "",
-            descriptionBurmese: "",
-            categoryId: categoryIds.categoryId,
-            productLicenseType: "NONE",
-            productLicenseNumber: "",
-            mainCategoryId: categoryIds.mainCategoryId,
-            subCategoryId: categoryIds.subCategoryId,
-            subSubCategoryId: categoryIds.categoryId,
-            sellerId: categoryIds.sellerId,
-            price: 0,
-            discount: 0,
-            stock: 0,
-            slug: "product-slug",
-            isDiscount: (productData.variant.discount || 0) > 0
-        },
-        productVariantDTO: [
-            {
-                price: String(productData.variant.price || 0),
-                stock: "9999999",
-                sku: productData.variant.sku || "",
-                discount: String(productData.variant.discount || 0),
-                weight: String(productData.variant.weight || 0),
-                width: String(productData.variant.width || 0),
-                length: String(productData.variant.length || 0),
-                height: String(productData.variant.height || 0),
-                enable: true,
-                productAttributeValueId: [String(productAttributeValueId)],
-                imageUrl: productData.variant.image || ""
-            }
-        ]
-    };
-    const response = await axiosInstance.post(`${apiUrl}/product/saveWithVariants`, payload, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
-    return response.data.productDTO.id;
+    try {
+        const payload = {
+            productDTO: {
+                name: productData.name,
+                nameThai: "",
+                nameBurmese: "",
+                brand: productData.brand || "",
+                description: productData.name,
+                descriptionThai: "",
+                descriptionBurmese: "",
+                categoryId: categoryIds.categoryId,
+                productLicenseType: "NONE",
+                productLicenseNumber: "",
+                mainCategoryId: categoryIds.mainCategoryId,
+                subCategoryId: categoryIds.subCategoryId,
+                subSubCategoryId: categoryIds.categoryId,
+                sellerId: categoryIds.sellerId,
+                price: 0,
+                discount: 0,
+                stock: 0,
+                slug: "product-slug",
+                isDiscount: (productData.variant.discount || 0) > 0
+            },
+            productVariantDTO: [
+                {
+                    price: String(productData.variant.price || 0),
+                    stock: "9999999",
+                    sku: productData.variant.sku || "",
+                    discount: String(productData.variant.discount || 0),
+                    weight: String(productData.variant.weight || 0),
+                    width: String(productData.variant.width || 0),
+                    length: String(productData.variant.length || 0),
+                    height: String(productData.variant.height || 0),
+                    enable: true,
+                    productAttributeValueId: [String(productAttributeValueId)],
+                    imageUrl: productData.variant.image || ""
+                }
+            ]
+        };
+        const response = await axiosInstance.post(`${apiUrl}/product/saveWithVariants`, payload, {
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+        });
+        if (!response.data?.productDTO?.id) {
+            throw new Error("Invalid response: missing product ID");
+        }
+        return response.data.productDTO.id;
+    }
+    catch (error) {
+        if (error.response) {
+            const status = error.response.status;
+            const message = error.response.data?.message ||
+                error.response.data?.error ||
+                error.response.statusText;
+            throw new Error(`API Error (${status}): ${message}`);
+        }
+        else if (error.request) {
+            throw new Error("No response from server - network error");
+        }
+        else {
+            throw new Error(error.message || "Failed to submit product");
+        }
+    }
 }
 async function uploadProductImages(token, productId, imageUrls, apiUrl) {
     const maxImages = 8;

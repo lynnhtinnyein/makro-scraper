@@ -99,6 +99,7 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
 
     let addedCount = 0;
     const errors: Array<{ url: string; error: string }> = [];
+
     try {
         for (const group of productGroups) {
             const {
@@ -109,45 +110,73 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
                 sellerId,
                 productAttributeValueId
             } = group;
+
+            if (!productUrls || !Array.isArray(productUrls)) {
+                continue;
+            }
+
             const concurrency = 2;
             for (let i = 0; i < productUrls.length; i += concurrency) {
                 const batch = productUrls.slice(i, i + concurrency);
                 const results = await Promise.allSettled(
                     batch.map(async (productUrl: string) => {
-                        const detailRaw = await scrapeProductDetail(productUrl);
-                        const product = transformProductData(detailRaw);
-                        const productId = await submitProduct(
-                            token,
-                            product,
-                            { mainCategoryId, subCategoryId, categoryId, sellerId },
-                            productAttributeValueId,
-                            apiUrl
-                        );
-                        if (productId && product.images?.length > 0) {
-                            await uploadProductImages(token, productId, product.images, apiUrl);
+                        try {
+                            const detailRaw = await scrapeProductDetail(productUrl);
+                            const product = transformProductData(detailRaw);
+                            const productId = await submitProduct(
+                                token,
+                                product,
+                                { mainCategoryId, subCategoryId, categoryId, sellerId },
+                                productAttributeValueId,
+                                apiUrl
+                            );
+                            if (productId && product.images?.length > 0) {
+                                await uploadProductImages(token, productId, product.images, apiUrl);
+                            }
+                            return { success: true, url: productUrl };
+                        } catch (err: any) {
+                            throw new Error(err.message || "Failed to process product");
                         }
-                        return { success: true };
                     })
                 );
+
                 results.forEach((result, idx) => {
-                    if (
-                        (result as PromiseFulfilledResult<any>).status === "fulfilled" &&
-                        (result as PromiseFulfilledResult<any>).value.success
-                    ) {
+                    if (result.status === "fulfilled" && result.value.success) {
                         addedCount++;
                     } else {
+                        const reason =
+                            result.status === "rejected"
+                                ? result.reason
+                                : new Error("Unknown error");
                         errors.push({
                             url: batch[idx],
-                            error: (result as any).reason?.message || "Unknown error"
+                            error: reason?.message || "Unknown error"
                         });
                     }
                 });
             }
         }
-        res.status(200).json({ addedCount, errors: errors.length > 0 ? errors : undefined });
+
+        if (errors.length > 0 && addedCount === 0) {
+            return res.status(400).json({
+                error: "All products failed to submit",
+                addedCount: 0,
+                errors
+            });
+        }
+
+        const statusCode = errors.length > 0 ? 207 : 200;
+        res.status(statusCode).json({
+            addedCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
     } catch (error: any) {
         console.error("Submit products error:", error);
-        res.status(500).json({ error: error.message, addedCount });
+        res.status(500).json({
+            error: error.message || "Internal server error",
+            addedCount,
+            errors: errors.length > 0 ? errors : undefined
+        });
     }
 });
 
