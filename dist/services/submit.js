@@ -101,20 +101,64 @@ async function uploadProductImages(token, productId, imageUrls, apiUrl) {
     const imagesToUpload = imageUrls.slice(0, maxImages);
     const concurrency = 3;
     const errors = [];
-    for (let i = 0; i < imagesToUpload.length; i += concurrency) {
-        const batch = imagesToUpload.slice(i, i + concurrency);
-        const promises = batch.map((imageUrl) => axiosInstance
-            .post(`${apiUrl}/product-image/save-image-url`, { productId, imageUrl }, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json"
-            }
-        })
-            .catch((error) => {
-            errors.push({ imageUrl, error: error.message });
-            return null;
-        }));
-        await Promise.all(promises);
+    let uploadedCount = 0;
+    try {
+        for (let i = 0; i < imagesToUpload.length; i += concurrency) {
+            const batch = imagesToUpload.slice(i, i + concurrency);
+            const results = await Promise.allSettled(batch.map(async (imageUrl) => {
+                if (!imageUrl || typeof imageUrl !== "string") {
+                    throw new Error("Invalid image URL");
+                }
+                try {
+                    const response = await axiosInstance.post(`${apiUrl}/product-image/save-image-url`, { productId, imageUrl }, {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            "Content-Type": "application/json"
+                        },
+                        timeout: 30000
+                    });
+                    return { success: true, imageUrl };
+                }
+                catch (error) {
+                    const errorData = {
+                        message: error.response?.data?.message ||
+                            error.response?.data?.error ||
+                            error.message ||
+                            "Failed to upload image",
+                        statusCode: error.response?.status,
+                        response: error.response?.data
+                    };
+                    throw errorData;
+                }
+            }));
+            results.forEach((result, idx) => {
+                if (result.status === "fulfilled") {
+                    uploadedCount++;
+                }
+                else {
+                    const errorData = result.reason;
+                    errors.push({
+                        imageUrl: batch[idx],
+                        error: errorData?.message || "Unknown error occurred",
+                        statusCode: errorData?.statusCode,
+                        response: errorData?.response
+                    });
+                }
+            });
+        }
     }
-    return { uploaded: imagesToUpload.length - errors.length, errors };
+    catch (error) {
+        const processedCount = uploadedCount + errors.length;
+        for (let i = processedCount; i < imagesToUpload.length; i++) {
+            errors.push({
+                imageUrl: imagesToUpload[i],
+                error: "Upload process interrupted"
+            });
+        }
+    }
+    return {
+        uploaded: uploadedCount,
+        failed: errors.length,
+        errors
+    };
 }
