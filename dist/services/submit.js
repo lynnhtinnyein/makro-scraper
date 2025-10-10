@@ -22,7 +22,7 @@ async function submitProduct(token, productData, categoryIds, productAttributeVa
                 nameThai: "",
                 nameBurmese: "",
                 brand: productData.brand || "",
-                description: productData.name,
+                description: productData.description === "" ? productData.name : productData.description,
                 descriptionThai: "",
                 descriptionBurmese: "",
                 categoryId: categoryIds.categoryId,

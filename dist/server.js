@@ -97,7 +97,7 @@ app.post("/api/products/submit", async (req, res) => {
     const errors = [];
     try {
         for (const group of productGroups) {
-            const { productUrls, mainCategoryId, subCategoryId, categoryId, sellerId, productAttributeValueId } = group;
+            const { productUrls, overwriteValues, mainCategoryId, subCategoryId, categoryId, sellerId, productAttributeValueId } = group;
             if (!productUrls || !Array.isArray(productUrls)) {
                 continue;
             }
@@ -107,7 +107,13 @@ app.post("/api/products/submit", async (req, res) => {
                 const results = await Promise.allSettled(batch.map(async (productUrl) => {
                     try {
                         const detailRaw = await (0, scraper_1.scrapeProductDetail)(productUrl);
-                        const product = (0, transform_1.transformProductData)(detailRaw);
+                        const transformedProduct = (0, transform_1.transformProductData)(detailRaw);
+                        const product = overwriteValues
+                            ? {
+                                ...transformedProduct,
+                                ...overwriteValues
+                            }
+                            : transformedProduct;
                         const productId = await (0, submit_1.submitProduct)(token, product, { mainCategoryId, subCategoryId, categoryId, sellerId }, productAttributeValueId, apiUrl);
                         if (productId && product.images?.length > 0) {
                             await (0, submit_1.uploadProductImages)(token, productId, product.images, apiUrl);

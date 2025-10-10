@@ -105,6 +105,7 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
         for (const group of productGroups) {
             const {
                 productUrls,
+                overwriteValues,
                 mainCategoryId,
                 subCategoryId,
                 categoryId,
@@ -123,7 +124,15 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
                     batch.map(async (productUrl: string) => {
                         try {
                             const detailRaw = await scrapeProductDetail(productUrl);
-                            const product = transformProductData(detailRaw);
+                            const transformedProduct = transformProductData(detailRaw);
+
+                            const product = overwriteValues
+                                ? {
+                                      ...transformedProduct,
+                                      ...overwriteValues
+                                  }
+                                : transformedProduct;
+
                             const productId = await submitProduct(
                                 token,
                                 product,

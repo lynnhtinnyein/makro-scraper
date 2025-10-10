@@ -18,6 +18,7 @@ export interface ProductVariant {
 
 export interface TransformedProduct {
     name: string | null | undefined;
+    description: string | null | undefined;
     brand: string | null;
     url: string;
     images: string[];

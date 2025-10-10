@@ -11,6 +11,7 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
         brand: details.brand || null,
         url: details.url,
         images: details.images || [],
+        description: "",
         variant: {
             image: details.images?.[0] || null,
             price: details.originalPrice,
