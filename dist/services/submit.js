@@ -83,16 +83,16 @@ async function submitProduct(token, productData, categoryIds, productAttributeVa
             if (!message || message === "Unknown product submission error") {
                 message = error.response.statusText || "Request failed";
             }
-            throw new Error(`Product Submit Error (${status}): ${message}`);
+            throw new Error(`Product Submit Error (${status}): ${message} : to ${apiUrl}`);
         }
         else if (error.request) {
-            throw new Error(`No response from server: ${error.message || "Network error"}`);
+            throw new Error(`No response from server: ${error.message || "Network error"} : to ${apiUrl}`);
         }
         else if (error.message) {
-            throw new Error(`Request setup failed: ${error.message}`);
+            throw new Error(`Request setup failed: ${error.message} : to ${apiUrl}`);
         }
         else {
-            throw new Error(`Unknown product submission error: ${JSON.stringify(error)}`);
+            throw new Error(`Unknown product submission error: ${JSON.stringify(error)} : to ${apiUrl}`);
         }
     }
 }

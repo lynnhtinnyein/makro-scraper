@@ -22,7 +22,8 @@ function getApiUrl(origin) {
     if (!uatApiUrl || !prodApiUrl) {
         throw new Error("NEONMALL_UAT_API_URL and NEONMALL_PROD_API_URL must be set in environment variables");
     }
-    return origin && origin.includes("admin.neonmall.co") ? prodApiUrl : uatApiUrl;
+    const hostname = origin ? new URL(origin).hostname : "";
+    return hostname === "admin.neonmall.co" ? prodApiUrl : uatApiUrl;
 }
 const app = (0, express_1.default)();
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : ["*"];
