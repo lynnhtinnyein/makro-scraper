@@ -8,7 +8,6 @@ import { getPoolSize, closeAll } from "./lib/browser";
 import { scrapeProductList, scrapeProductDetail } from "./services/scraper";
 import { transformProductData } from "./lib/transform";
 import { submitProduct, uploadProductImages } from "./services/submit";
-import { cleanUpUrl } from "./lib/utils";
 
 const environment = process.env.NODE_ENV || "development";
 const envFile = `.env.${environment}`;
@@ -72,14 +71,15 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             poolSize: getPoolSize(),
             worker: process.pid,
             endpoints: {
-                getProductList: "/api/products/list",
-                getSingleProduct: "/api/products/single",
-                submitProducts: "/api/products/submit"
+                searchProducts: "/api/products/search",
+                scrapeProduct: "/api/products/scrape",
+                submitSingle: "/api/products/submit-single",
+                submitBatch: "/api/products/submit-batch"
             }
         });
     });
 
-    app.post("/api/products/list", async (req: Request, res: Response) => {
+    app.post("/api/products/search", async (req: Request, res: Response) => {
         const { url, max } = req.body as { url?: string; max?: string | number };
         const maxProducts = Math.min(parseInt(String(max)) || 20, 20);
 
@@ -89,35 +89,65 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             const products = await scrapeProductList(url, maxProducts);
             res.json(products);
         } catch (error: any) {
-            console.error("Product list endpoint error:", error);
+            console.error("Product search endpoint error:", error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    app.post("/api/products/single", async (req: Request, res: Response) => {
+    app.post("/api/products/scrape", async (req: Request, res: Response) => {
         const { url } = req.body as { url?: string };
 
         if (!url) return res.status(400).json({ error: "URL parameter is required" });
 
         try {
-            const product = await scrapeProductDetail(url);
-            const singleProduct = {
-                name: product.title,
-                image: product.images[0] || null,
-                originalPrice: product.originalPrice,
-                discountedPrice:
-                    product.discountedPrice === 0 ? product.originalPrice : product.discountedPrice,
-                discountPercent: product.discountPercent,
-                url: cleanUpUrl(product.url)
-            };
-            res.json(singleProduct);
+            const detailRaw = await scrapeProductDetail(url);
+            const transformedProduct = transformProductData(detailRaw);
+            res.json(transformedProduct);
         } catch (error: any) {
-            console.error("Single product endpoint error:", error);
+            console.error("Product scrape endpoint error:", error);
             res.status(500).json({ error: error.message });
         }
     });
 
-    app.post("/api/products/submit", async (req: Request, res: Response) => {
+    app.post("/api/products/submit-single", async (req: Request, res: Response) => {
+        const {
+            token,
+            product,
+            mainCategoryId,
+            subCategoryId,
+            categoryId,
+            sellerId,
+            productAttributeValueId
+        } = req.body as any;
+
+        if (!token || !product) {
+            return res.status(400).json({ error: "Token and product data are required" });
+        }
+
+        const origin = req.get("origin") || req.get("referer");
+        const apiUrl = getApiUrl(origin);
+
+        try {
+            const productId = await submitProduct(
+                token,
+                product,
+                { mainCategoryId, subCategoryId, categoryId, sellerId },
+                productAttributeValueId,
+                apiUrl
+            );
+
+            if (productId && product.images?.length > 0) {
+                await uploadProductImages(token, productId, product.images, apiUrl);
+            }
+
+            res.json({ success: true, productId });
+        } catch (error: any) {
+            console.error("Submit single product error:", error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    app.post("/api/products/submit-batch", async (req: Request, res: Response) => {
         const { token, productGroups } = req.body as any;
 
         if (!token || !productGroups || !Array.isArray(productGroups)) {
@@ -134,7 +164,6 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             for (const group of productGroups) {
                 const {
                     productUrls,
-                    overwriteValues,
                     mainCategoryId,
                     subCategoryId,
                     categoryId,
@@ -153,11 +182,7 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                         batch.map(async (productUrl: string) => {
                             try {
                                 const detailRaw = await scrapeProductDetail(productUrl);
-                                const transformedProduct = transformProductData(detailRaw);
-
-                                const product = overwriteValues
-                                    ? { ...transformedProduct, ...overwriteValues }
-                                    : transformedProduct;
+                                const product = transformProductData(detailRaw);
 
                                 const productId = await submitProduct(
                                     token,
@@ -214,7 +239,7 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                 errors: errors.length > 0 ? errors : undefined
             });
         } catch (error: any) {
-            console.error("Submit products error:", error);
+            console.error("Submit batch products error:", error);
             res.status(500).json({
                 error: error.message || "Internal server error",
                 addedCount,

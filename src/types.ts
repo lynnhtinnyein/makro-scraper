@@ -23,6 +23,11 @@ export interface TransformedProduct {
     url: string;
     images: string[];
     variant: ProductVariant;
+
+    //just for frontend info
+    originalPrice: number | null;
+    discountedPrice: number | null;
+    discountPercent: number;
 }
 
 export interface ProductDetailRaw {

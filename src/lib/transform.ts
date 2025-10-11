@@ -1,5 +1,6 @@
 import { extractDimensions, getPrefixedSku } from "./parsers";
 import { ProductDetailRaw, TransformedProduct } from "../types";
+import { cleanUpUrl } from "./utils";
 
 export function transformProductData(details: ProductDetailRaw): TransformedProduct {
     const dimensions = extractDimensions(details.specifications["Total volume"]);
@@ -9,9 +10,9 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
     return {
         name: details.title,
         brand: details.brand || null,
-        url: details.url,
+        url: cleanUpUrl(details.url),
         images: details.images || [],
-        description: "",
+        description: details.title,
         variant: {
             image: details.images?.[0] || null,
             price: details.originalPrice,
@@ -21,6 +22,11 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
             width: dimensions.width,
             height: dimensions.height,
             weight: dimensions.weight
-        }
+        },
+
+        //just for info
+        originalPrice: details.originalPrice,
+        discountedPrice: details.discountedPrice,
+        discountPercent: details.discountPercent || 0
     };
 }
