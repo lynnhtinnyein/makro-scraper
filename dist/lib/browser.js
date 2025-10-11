@@ -3,81 +3,115 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getBrowser = getBrowser;
 exports.getPage = getPage;
 exports.releasePage = releasePage;
-exports.closeAll = closeAll;
 exports.getPoolSize = getPoolSize;
+exports.closeAll = closeAll;
 const puppeteer_1 = __importDefault(require("puppeteer"));
-let browserInstance = null;
-const pagePool = [];
-const MAX_PAGES = 5;
-async function getBrowser() {
-    if (!browserInstance) {
-        browserInstance = await puppeteer_1.default.launch({
-            headless: true,
-            args: [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-blink-features=AutomationControlled",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-software-rasterizer",
-                "--disable-extensions",
-                "--disable-background-networking",
-                "--disable-background-timer-throttling",
-                "--disable-backgrounding-occluded-windows",
-                "--disable-renderer-backgrounding"
-            ]
-        });
+const POOL_SIZE = 4;
+const MAX_PAGES_PER_BROWSER = 3;
+const PAGE_IDLE_TIMEOUT = 120000;
+const BROWSER_IDLE_TIMEOUT = 300000;
+const browserPool = [];
+const pageQueue = [];
+async function createBrowser() {
+    const browser = await puppeteer_1.default.launch({
+        headless: true,
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-breakpad",
+            "--disable-component-extensions-with-background-pages",
+            "--disable-features=TranslateUI,BlinkGenPropertyTrees",
+            "--disable-ipc-flooding-protection",
+            "--disable-renderer-backgrounding",
+            "--enable-features=NetworkService,NetworkServiceInProcess",
+            "--force-color-profile=srgb",
+            "--metrics-recording-only",
+            "--mute-audio",
+            "--disable-default-apps",
+            "--disable-sync",
+            "--hide-scrollbars",
+            "--single-process"
+        ],
+        defaultViewport: { width: 1280, height: 720 }
+    });
+    return {
+        browser,
+        pages: [],
+        lastUsed: Date.now(),
+        activePages: 0
+    };
+}
+async function initializeBrowserPool() {
+    for (let i = 0; i < POOL_SIZE; i++) {
+        const instance = await createBrowser();
+        browserPool.push(instance);
     }
-    return browserInstance;
 }
 async function getPage() {
-    const browser = await getBrowser();
-    if (pagePool.length > 0) {
-        return pagePool.pop();
+    if (browserPool.length === 0) {
+        await initializeBrowserPool();
     }
-    const page = await browser.newPage();
-    await setupPage(page);
-    return page;
-}
-function releasePage(page) {
-    if (pagePool.length < MAX_PAGES) {
-        page.goto("about:blank").catch(() => { });
-        pagePool.push(page);
-    }
-    else {
-        page.close().catch(() => { });
-    }
-}
-async function closeAll() {
-    await Promise.all(pagePool.map((p) => p.close().catch(() => { })));
-    pagePool.length = 0;
-    if (browserInstance) {
-        await browserInstance.close();
-        browserInstance = null;
-    }
-}
-async function setupPage(page) {
-    await page.setRequestInterception(true);
-    page.on("request", (req) => {
-        const resourceType = req.resourceType();
-        if (["font", "stylesheet", "media"].includes(resourceType)) {
-            req.abort();
+    return new Promise(async (resolve) => {
+        const availableInstance = browserPool.find((instance) => instance.activePages < MAX_PAGES_PER_BROWSER);
+        if (availableInstance) {
+            const page = await availableInstance.browser.newPage();
+            await page.setRequestInterception(false);
+            await page.setCacheEnabled(true);
+            availableInstance.pages.push(page);
+            availableInstance.activePages++;
+            availableInstance.lastUsed = Date.now();
+            resolve(page);
         }
         else {
-            req.continue();
+            pageQueue.push(resolve);
         }
     });
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-    await page.evaluateOnNewDocument(() => {
-        Object.defineProperty(navigator, "webdriver", { get: () => undefined });
-        // @ts-expect-error augments window
-        window.navigator.chrome = { runtime: {} };
-    });
+}
+function releasePage(page) {
+    const instance = browserPool.find((inst) => inst.pages.includes(page));
+    if (instance) {
+        page.close().catch(console.error);
+        instance.pages = instance.pages.filter((p) => p !== page);
+        instance.activePages--;
+        instance.lastUsed = Date.now();
+        if (pageQueue.length > 0) {
+            const resolver = pageQueue.shift();
+            if (resolver) {
+                getPage().then(resolver);
+            }
+        }
+    }
 }
 function getPoolSize() {
-    return pagePool.length;
+    return browserPool.length;
 }
+async function closeAll() {
+    for (const instance of browserPool) {
+        try {
+            await instance.browser.close();
+        }
+        catch (error) {
+            console.error("Error closing browser:", error);
+        }
+    }
+    browserPool.length = 0;
+}
+setInterval(() => {
+    const now = Date.now();
+    browserPool.forEach((instance) => {
+        if (instance.activePages === 0 && now - instance.lastUsed > BROWSER_IDLE_TIMEOUT) {
+            instance.browser.close().catch(console.error);
+        }
+    });
+}, 60000);

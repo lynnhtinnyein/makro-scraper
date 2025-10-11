@@ -4,10 +4,22 @@ import https from "https";
 import { CategoryIds, TransformedProduct } from "../types";
 
 const axiosInstance = axios.create({
-    timeout: 30000,
-    maxRedirects: 5,
-    httpAgent: new http.Agent({ keepAlive: true }),
-    httpsAgent: new https.Agent({ keepAlive: true })
+    timeout: 20000,
+    maxRedirects: 3,
+    httpAgent: new http.Agent({
+        keepAlive: true,
+        maxSockets: 50,
+        maxFreeSockets: 10,
+        timeout: 20000,
+        keepAliveMsecs: 30000
+    }),
+    httpsAgent: new https.Agent({
+        keepAlive: true,
+        maxSockets: 50,
+        maxFreeSockets: 10,
+        timeout: 20000,
+        keepAliveMsecs: 30000
+    })
 });
 
 export async function submitProduct(
@@ -59,7 +71,10 @@ export async function submitProduct(
         };
 
         const response = await axiosInstance.post(`${apiUrl}/product/saveWithVariants`, payload, {
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
         });
 
         if (!response.data?.productDTO?.id) {
@@ -118,7 +133,7 @@ export async function uploadProductImages(
 }> {
     const maxImages = 8;
     const imagesToUpload = imageUrls.slice(0, maxImages);
-    const concurrency = 3;
+    const concurrency = 5;
     const errors: Array<{ imageUrl: string; error: string; statusCode?: number; response?: any }> =
         [];
     let uploadedCount = 0;
@@ -142,7 +157,7 @@ export async function uploadProductImages(
                                     Authorization: `Bearer ${token}`,
                                     "Content-Type": "application/json"
                                 },
-                                timeout: 30000
+                                timeout: 20000
                             }
                         );
                         return { success: true, imageUrl };

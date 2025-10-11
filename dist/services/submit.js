@@ -9,10 +9,22 @@ const axios_1 = __importDefault(require("axios"));
 const http_1 = __importDefault(require("http"));
 const https_1 = __importDefault(require("https"));
 const axiosInstance = axios_1.default.create({
-    timeout: 30000,
-    maxRedirects: 5,
-    httpAgent: new http_1.default.Agent({ keepAlive: true }),
-    httpsAgent: new https_1.default.Agent({ keepAlive: true })
+    timeout: 20000,
+    maxRedirects: 3,
+    httpAgent: new http_1.default.Agent({
+        keepAlive: true,
+        maxSockets: 50,
+        maxFreeSockets: 10,
+        timeout: 20000,
+        keepAliveMsecs: 30000
+    }),
+    httpsAgent: new https_1.default.Agent({
+        keepAlive: true,
+        maxSockets: 50,
+        maxFreeSockets: 10,
+        timeout: 20000,
+        keepAliveMsecs: 30000
+    })
 });
 async function submitProduct(token, productData, categoryIds, productAttributeValueId, apiUrl) {
     try {
@@ -55,7 +67,10 @@ async function submitProduct(token, productData, categoryIds, productAttributeVa
             ]
         };
         const response = await axiosInstance.post(`${apiUrl}/product/saveWithVariants`, payload, {
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
         });
         if (!response.data?.productDTO?.id) {
             throw new Error("Invalid response: missing product ID");
@@ -99,7 +114,7 @@ async function submitProduct(token, productData, categoryIds, productAttributeVa
 async function uploadProductImages(token, productId, imageUrls, apiUrl) {
     const maxImages = 8;
     const imagesToUpload = imageUrls.slice(0, maxImages);
-    const concurrency = 3;
+    const concurrency = 5;
     const errors = [];
     let uploadedCount = 0;
     try {
@@ -115,7 +130,7 @@ async function uploadProductImages(token, productId, imageUrls, apiUrl) {
                             Authorization: `Bearer ${token}`,
                             "Content-Type": "application/json"
                         },
-                        timeout: 30000
+                        timeout: 20000
                     });
                     return { success: true, imageUrl };
                 }

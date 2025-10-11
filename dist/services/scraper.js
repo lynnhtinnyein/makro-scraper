@@ -4,13 +4,28 @@ exports.scrapeProductList = scrapeProductList;
 exports.scrapeProductDetail = scrapeProductDetail;
 const browser_1 = require("../lib/browser");
 const utils_1 = require("../lib/utils");
+const RESOURCE_CACHE = new Map();
+const CACHE_TTL = 300000;
 async function scrapeProductList(url, maxProducts = 20) {
     const page = await (0, browser_1.getPage)();
     try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        await (0, utils_1.delay)(2000);
-        await autoScroll(page, 3000, 80, 300);
+        await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+            const resourceType = req.resourceType();
+            if (resourceType === "image" || resourceType === "font" || resourceType === "media") {
+                req.abort();
+            }
+            else {
+                req.continue();
+            }
+        });
         await (0, utils_1.delay)(1500);
+        await autoScroll(page, 2000, 100, 300);
+        await (0, utils_1.delay)(1000);
         const products = await page.evaluate((max) => {
             const results = [];
             const selectors = [
@@ -117,10 +132,23 @@ async function scrapeProductList(url, maxProducts = 20) {
 async function scrapeProductDetail(url) {
     const page = await (0, browser_1.getPage)();
     try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        await (0, utils_1.delay)(3000);
-        await autoScroll(page, 5000, 40, 200);
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+            const resourceType = req.resourceType();
+            if (resourceType === "font" || resourceType === "media") {
+                req.abort();
+            }
+            else {
+                req.continue();
+            }
+        });
+        await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
         await (0, utils_1.delay)(2000);
+        await autoScroll(page, 3000, 50, 200);
+        await (0, utils_1.delay)(1500);
         const productDetail = await page.evaluate(() => {
             const getText = (selector) => {
                 const elem = document.querySelector(selector);

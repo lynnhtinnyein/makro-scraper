@@ -3,6 +3,9 @@ import { getPage, releasePage } from "../lib/browser";
 import { delay } from "../lib/utils";
 import { ProductDetailRaw } from "../types";
 
+const RESOURCE_CACHE = new Map<string, any>();
+const CACHE_TTL = 300000;
+
 export async function scrapeProductList(
     url: string,
     maxProducts = 20
@@ -18,10 +21,25 @@ export async function scrapeProductList(
 > {
     const page = await getPage();
     try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-        await delay(2000);
-        await autoScroll(page, 3000, 80, 300);
+        await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
+
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+            const resourceType = req.resourceType();
+            if (resourceType === "image" || resourceType === "font" || resourceType === "media") {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
         await delay(1500);
+        await autoScroll(page, 2000, 100, 300);
+        await delay(1000);
+
         const products = await page.evaluate((max) => {
             const results: Array<{
                 name: string;
@@ -31,6 +49,7 @@ export async function scrapeProductList(
                 image: string;
                 url: string;
             }> = [];
+
             const selectors = [
                 "article",
                 '[data-testid*="product"]',
@@ -40,11 +59,13 @@ export async function scrapeProductList(
                 'li[class*="product"]',
                 'div[class*="product"]'
             ];
+
             let elements: NodeListOf<Element> | [] = [] as any;
             for (const selector of selectors) {
                 elements = document.querySelectorAll(selector);
                 if (elements.length > 0) break;
             }
+
             for (let i = 0; i < (elements as any).length && results.length < max; i++) {
                 const el = (elements as any)[i] as HTMLElement;
                 try {
@@ -142,6 +163,7 @@ export async function scrapeProductList(
             }
             return results;
         }, maxProducts);
+
         return products;
     } finally {
         releasePage(page);
@@ -151,10 +173,24 @@ export async function scrapeProductList(
 export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw> {
     const page = await getPage();
     try {
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        await delay(3000);
-        await autoScroll(page, 5000, 40, 200);
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+            const resourceType = req.resourceType();
+            if (resourceType === "font" || resourceType === "media") {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
+
+        await page.goto(url, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
+
         await delay(2000);
+        await autoScroll(page, 3000, 50, 200);
+        await delay(1500);
 
         const productDetail = await page.evaluate(() => {
             const getText = (selector: string): string => {
@@ -243,6 +279,7 @@ export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw
                         });
                     }
                 }
+
                 const specsSection = descContainer.querySelector('[class*="css-kc1uqk"]');
                 if (specsSection) {
                     const specItems = specsSection.querySelectorAll('[class*="css-tvc15p"]');
@@ -317,6 +354,7 @@ export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw
                     '[class*="ProductImage"] img',
                     '[data-testid*="image"] img'
                 ];
+
                 for (const selector of imageSelectors) {
                     const imgs = document.querySelectorAll(selector);
                     if (imgs.length > 0) {
