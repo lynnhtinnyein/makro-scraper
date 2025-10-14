@@ -1,0 +1,22 @@
+module.exports = {
+    apps: [
+        {
+            name: "makro-scraper-api",
+            script: "./dist/server.js",
+            env: {
+                NODE_ENV: "production",
+                ALLOWED_ORIGINS:
+                    "http://localhost:3000,http://localhost:3001,https://uat.admin.neonmall.co,https://admin.neonmall.co,http://159.223.89.250:3000",
+                HOST_URL: "0.0.0.0",
+                PORT: "4000",
+                NEONMALL_UAT_API_URL: "https://api.ecommerce.neon-xpress.com/v1/api",
+                NEONMALL_PROD_API_URL: "https://api.production.ecommerce.neonmall.co/v1/api",
+                NEONMALL_UAT_ADMIN_URL: "https://uat.admin.neonmall.co",
+                NEONMALL_PROD_ADMIN_URL: "https://admin.neonmall.co",
+                NODE_OPTIONS: "--max-old-space-size=8192",
+                USE_CLUSTERING: "true",
+                VERSION: "2.0.0"
+            }
+        }
+    ]
+};
