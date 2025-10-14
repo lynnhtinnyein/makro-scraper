@@ -9,9 +9,7 @@ import { scrapeProductList, scrapeProductDetail } from "./services/scraper";
 import { transformProductData } from "./lib/transform";
 import { submitProduct, uploadProductImages } from "./services/submit";
 
-const environment = process.env.NODE_ENV || "development";
-const envFile = `.env.${environment}`;
-dotenv.config({ path: envFile });
+dotenv.config();
 
 const uatApiUrl = process.env.NEONMALL_UAT_API_URL;
 const prodApiUrl = process.env.NEONMALL_PROD_API_URL;

@@ -22,7 +22,9 @@ export function extractPricePerUnit(priceText: string | undefined): number | nul
 
 //not in used
 // remove quantity suffix like " x 4"
-export function parseToSingleProductName(name: string | null | undefined): string | null | undefined {
+export function parseToSingleProductName(
+    name: string | null | undefined
+): string | null | undefined {
     return name ? name.replace(/\s*x\s*\d+\s*$/i, "").trim() : name;
 }
 

@@ -15,7 +15,7 @@ module.exports = {
                 NEONMALL_PROD_ADMIN_URL: "https://admin.neonmall.co",
                 NODE_OPTIONS: "--max-old-space-size=8192",
                 USE_CLUSTERING: "true",
-                VERSION: "2.0.0"
+                VERSION: "2.1.0"
             }
         }
     ]
