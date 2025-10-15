@@ -28,6 +28,7 @@ export interface TransformedProduct {
 export interface ProductDetailRaw {
     title: string;
     brand: string;
+    description: string;
     pricePerUnit: string;
     originalPrice: number;
     discountedPrice: number;

@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import http from "http";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -6,11 +6,8 @@ import { getPoolSize, closeAll } from "./lib/browser";
 import { scrapeProductList, scrapeProductDetail } from "./services/scraper";
 import { transformProductData } from "./lib/transform";
 import { submitProduct, uploadProductImages } from "./services/submit";
-import { cleanUpUrl } from "./lib/utils";
 
-const environment = process.env.NODE_ENV || "development";
-const envFile = `.env.${environment}`;
-dotenv.config({ path: envFile });
+dotenv.config();
 
 const uatApiUrl = process.env.NEONMALL_UAT_API_URL;
 const prodApiUrl = process.env.NEONMALL_PROD_API_URL;
@@ -42,70 +39,113 @@ app.use(
 );
 app.use(express.json());
 
-app.get("/health", async (_req: Request, res: Response) => {
-    res.status(200).json({
-        message: "Makro Scraper API is running",
-        status: "ok",
-        poolSize: getPoolSize(),
-        endpoints: {
-            getProductList: "/api/products/list",
-            getSingleProduct: "/api/products/single",
-            submitProducts: "/api/products/submit"
-        }
-    });
-});
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
+};
 
-app.post("/api/products/list", async (req: Request, res: Response) => {
-    const { url, max } = req.body as { url?: string; max?: string | number };
-    const maxProducts = Math.min(parseInt(String(max)) || 20, 20);
-    if (!url) return res.status(400).json({ error: "URL parameter is required" });
-    try {
+app.get(
+    "/health",
+    asyncHandler(async (_req: Request, res: Response) => {
+        res.status(200).json({
+            message: "Makro Scraper API is running",
+            status: "ok",
+            poolSize: getPoolSize(),
+            endpoints: {
+                getProductList: "/api/products/list",
+                getSingleProduct: "/api/products/single",
+                submitProducts: "/api/products/submit"
+            }
+        });
+    })
+);
+
+app.post(
+    "/api/products/search",
+    asyncHandler(async (req: Request, res: Response) => {
+        const { url, max } = req.body as { url?: string; max?: string | number };
+        const maxProducts = Math.min(parseInt(String(max)) || 20, 20);
+        if (!url) {
+            res.status(400).json({ error: "URL parameter is required" });
+            return;
+        }
         const products = await scrapeProductList(url, maxProducts);
         res.json(products);
-    } catch (error: any) {
-        console.error("Product list endpoint error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
+    })
+);
 
-app.post("/api/products/single", async (req: Request, res: Response) => {
-    const { url } = req.body as { url?: string };
-    if (!url) return res.status(400).json({ error: "URL parameter is required" });
-    try {
-        const product = await scrapeProductDetail(url);
-        const singleProduct = {
-            name: product.title,
-            image: product.images[0] || null,
-            originalPrice: product.originalPrice,
-            discountedPrice:
-                product.discountedPrice === 0 ? product.originalPrice : product.discountedPrice,
-            discountPercent: product.discountPercent,
-            url: cleanUpUrl(product.url)
-        };
-        res.json(singleProduct);
-    } catch (error: any) {
-        console.error("Single product endpoint error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
+app.post(
+    "/api/products/scrape",
+    asyncHandler(async (req: Request, res: Response) => {
+        const { url } = req.body as { url?: string };
 
-app.post("/api/products/submit", async (req: Request, res: Response) => {
-    const { token, productGroups } = req.body as any;
-    if (!token || !productGroups || !Array.isArray(productGroups)) {
-        return res.status(400).json({ error: "Token and productGroups are required" });
-    }
+        if (!url) {
+            res.status(400).json({ error: "URL parameter is required" });
+            return;
+        }
 
-    const origin = req.get("origin") || req.get("referer");
-    const apiUrl = getApiUrl(origin);
+        const detailRaw = await scrapeProductDetail(url);
+        const transformedProduct = transformProductData(detailRaw);
+        res.json(transformedProduct);
+    })
+);
 
-    let addedCount = 0;
-    const errors: Array<{ url: string; error: string }> = [];
+app.post(
+    "/api/products/submit-single",
+    asyncHandler(async (req: Request, res: Response) => {
+        const {
+            token,
+            product,
+            mainCategoryId,
+            subCategoryId,
+            categoryId,
+            sellerId,
+            productAttributeValueId
+        } = req.body as any;
 
-    try {
+        if (!token || !product) {
+            res.status(400).json({ error: "Token and product data are required" });
+            return;
+        }
+
+        const origin = req.get("origin") || req.get("referer");
+        const apiUrl = getApiUrl(origin);
+
+        const productId = await submitProduct(
+            token,
+            product,
+            { mainCategoryId, subCategoryId, categoryId, sellerId },
+            productAttributeValueId,
+            apiUrl
+        );
+
+        if (productId && product.images?.length > 0) {
+            await uploadProductImages(token, productId, product.images, apiUrl);
+        }
+
+        res.json({ success: true, productId });
+    })
+);
+
+app.post(
+    "/api/products/submit-batch",
+    asyncHandler(async (req: Request, res: Response) => {
+        const { token, productGroups } = req.body as any;
+        if (!token || !productGroups || !Array.isArray(productGroups)) {
+            res.status(400).json({ error: "Token and productGroups are required" });
+            return;
+        }
+
+        const origin = req.get("origin") || req.get("referer");
+        const apiUrl = getApiUrl(origin);
+
+        let addedCount = 0;
+        const errors: Array<{ url: string; error: string }> = [];
+
         for (const group of productGroups) {
             const {
                 productUrls,
-                overwriteValues,
                 mainCategoryId,
                 subCategoryId,
                 categoryId,
@@ -124,14 +164,7 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
                     batch.map(async (productUrl: string) => {
                         try {
                             const detailRaw = await scrapeProductDetail(productUrl);
-                            const transformedProduct = transformProductData(detailRaw);
-
-                            const product = overwriteValues
-                                ? {
-                                      ...transformedProduct,
-                                      ...overwriteValues
-                                  }
-                                : transformedProduct;
+                            const product = transformProductData(detailRaw);
 
                             const productId = await submitProduct(
                                 token,
@@ -168,11 +201,12 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
         }
 
         if (errors.length > 0 && addedCount === 0) {
-            return res.status(400).json({
+            res.status(400).json({
                 error: "All products failed to submit",
                 addedCount: 0,
                 errors
             });
+            return;
         }
 
         const statusCode = errors.length > 0 ? 207 : 200;
@@ -180,32 +214,25 @@ app.post("/api/products/submit", async (req: Request, res: Response) => {
             addedCount,
             errors: errors.length > 0 ? errors : undefined
         });
-    } catch (error: any) {
-        console.error("Submit products error:", error);
-        res.status(500).json({
-            error: error.message || "Internal server error",
-            addedCount,
-            errors: errors.length > 0 ? errors : undefined
-        });
-    }
-});
+    })
+);
 
-app.get("/close", async (_req: Request, res: Response) => {
-    try {
+app.get(
+    "/close",
+    asyncHandler(async (_req: Request, res: Response) => {
         await closeAll();
         res.json({ success: true, message: "Browser closed successfully" });
-    } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
+    })
+);
 
 const server = http.createServer(app);
 const PORT = process.env.PORT || 4000;
 const hostUrl = process.env.HOST_URL || "0.0.0.0";
+const version = process.env.VERSION || "1.0.0";
 
 server.listen(PORT as number, hostUrl as string, () => {
     console.log(`========================================`);
-    console.log(`Makro Scraper API is running`);
+    console.log(`Makro Scraper API ${version} is running`);
     console.log(`Port: ${PORT}`);
     console.log(`========================================`);
 });
