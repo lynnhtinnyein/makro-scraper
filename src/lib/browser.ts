@@ -2,8 +2,8 @@ import puppeteer, { Browser, Page } from "puppeteer-core";
 import { execSync } from "child_process";
 import * as os from "os";
 
-const POOL_SIZE = 6;
-const MAX_PAGE_REUSES = 15;
+const POOL_SIZE = 4;
+const MAX_PAGE_REUSES = 10;
 const PAGE_TIMEOUT = 45000;
 const BROWSER_RECONNECT_DELAY = 2000;
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -240,7 +240,7 @@ export async function closeAll(): Promise<void> {
 
 setInterval(() => {
     const now = Date.now();
-    const stalePeriod = 300000;
+    const stalePeriod = 180000;
 
     pagePool = pagePool.filter((pooledPage) => {
         if (!pooledPage.inUse && now - pooledPage.lastUsed > stalePeriod) {
@@ -249,4 +249,17 @@ setInterval(() => {
         }
         return true;
     });
-}, 60000);
+
+    const memUsage = process.memoryUsage();
+    const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    if (memUsedMB > 1500) {
+        console.warn(`High memory usage: ${memUsedMB}MB - cleaning up pages`);
+        const unusedPages = pagePool.filter((p) => !p.inUse);
+        if (unusedPages.length > 2) {
+            unusedPages.slice(0, Math.floor(unusedPages.length / 2)).forEach((p) => {
+                p.page.close().catch(() => {});
+                pagePool = pagePool.filter((pp) => pp !== p);
+            });
+        }
+    }
+}, 30000);

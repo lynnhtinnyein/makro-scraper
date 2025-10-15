@@ -6,7 +6,7 @@ module.exports = {
             instances: 1,
             exec_mode: "fork",
             watch: false,
-            max_memory_restart: "2G",
+            max_memory_restart: "1500M",
             env: {
                 NODE_ENV: "production",
                 ALLOWED_ORIGINS:
@@ -19,7 +19,7 @@ module.exports = {
                 NEONMALL_PROD_ADMIN_URL: "https://admin.neonmall.co",
                 NODE_OPTIONS: "--max-old-space-size=8192",
                 USE_CLUSTERING: "true",
-                VERSION: "2.1.0"
+                VERSION: "2.2.1"
             },
             error_file: "./logs/err.log",
             out_file: "./logs/out.log",

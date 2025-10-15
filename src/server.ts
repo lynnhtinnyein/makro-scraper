@@ -180,6 +180,9 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             let addedCount = 0;
             const errors: Array<{ url: string; error: string }> = [];
 
+            const BATCH_CONCURRENCY = 2;
+            const DELAY_BETWEEN_BATCHES = 500;
+
             for (const group of productGroups) {
                 const {
                     productUrls,
@@ -194,27 +197,36 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                     continue;
                 }
 
-                const concurrency = 4;
-                for (let i = 0; i < productUrls.length; i += concurrency) {
-                    const batch = productUrls.slice(i, i + concurrency);
+                for (let i = 0; i < productUrls.length; i += BATCH_CONCURRENCY) {
+                    const batch = productUrls.slice(i, i + BATCH_CONCURRENCY);
+
                     const results = await Promise.allSettled(
                         batch.map(async (productUrl: string) => {
-                            const detailRaw = await scrapeProductDetail(productUrl);
-                            const product = transformProductData(detailRaw);
+                            try {
+                                const detailRaw = await scrapeProductDetail(productUrl);
+                                const product = transformProductData(detailRaw);
 
-                            const productId = await submitProduct(
-                                token,
-                                product,
-                                { mainCategoryId, subCategoryId, categoryId, sellerId },
-                                productAttributeValueId,
-                                apiUrl
-                            );
+                                const productId = await submitProduct(
+                                    token,
+                                    product,
+                                    { mainCategoryId, subCategoryId, categoryId, sellerId },
+                                    productAttributeValueId,
+                                    apiUrl
+                                );
 
-                            if (productId && product.images?.length > 0) {
-                                await uploadProductImages(token, productId, product.images, apiUrl);
+                                if (productId && product.images?.length > 0) {
+                                    await uploadProductImages(
+                                        token,
+                                        productId,
+                                        product.images,
+                                        apiUrl
+                                    );
+                                }
+
+                                return { success: true, url: productUrl };
+                            } catch (err: any) {
+                                throw new Error(err.message || "Failed to process product");
                             }
-
-                            return { success: true, url: productUrl };
                         })
                     );
 
@@ -232,6 +244,14 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                             });
                         }
                     });
+
+                    if (i + BATCH_CONCURRENCY < productUrls.length) {
+                        await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+                    }
+
+                    if (global.gc) {
+                        global.gc();
+                    }
                 }
             }
 
@@ -271,7 +291,7 @@ if (USE_CLUSTERING && cluster.isPrimary) {
     const server = http.createServer(app);
     const PORT = process.env.PORT || 4000;
     const hostUrl = process.env.HOST_URL || "0.0.0.0";
-    const version = process.env.VERSION || "2.2.0";
+    const version = process.env.VERSION || "2.2.1";
 
     server.timeout = 180000;
     server.keepAliveTimeout = 75000;
