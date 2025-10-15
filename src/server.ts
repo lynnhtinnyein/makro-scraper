@@ -15,7 +15,7 @@ const uatApiUrl = process.env.NEONMALL_UAT_API_URL;
 const prodApiUrl = process.env.NEONMALL_PROD_API_URL;
 const USE_CLUSTERING = process.env.USE_CLUSTERING === "true";
 const numCPUs = os.cpus().length;
-const WORKERS = Math.min(numCPUs, 6);
+const WORKERS = Math.min(numCPUs, 4);
 
 export function getApiUrl(origin?: string): string {
     if (!uatApiUrl || !prodApiUrl) {
@@ -248,10 +248,6 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                     if (i + BATCH_CONCURRENCY < productUrls.length) {
                         await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
                     }
-
-                    if (global.gc) {
-                        global.gc();
-                    }
                 }
             }
 
@@ -291,9 +287,9 @@ if (USE_CLUSTERING && cluster.isPrimary) {
     const server = http.createServer(app);
     const PORT = process.env.PORT || 4000;
     const hostUrl = process.env.HOST_URL || "0.0.0.0";
-    const version = process.env.VERSION || "2.2.1";
+    const version = process.env.VERSION || "2.2.2";
 
-    server.timeout = 180000;
+    server.timeout = 300000;
     server.keepAliveTimeout = 75000;
     server.headersTimeout = 76000;
 
