@@ -249,17 +249,4 @@ setInterval(() => {
         }
         return true;
     });
-
-    const memUsage = process.memoryUsage();
-    const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-    if (memUsedMB > 1500) {
-        console.warn(`High memory usage: ${memUsedMB}MB - cleaning up pages`);
-        const unusedPages = pagePool.filter((p) => !p.inUse);
-        if (unusedPages.length > 2) {
-            unusedPages.slice(0, Math.floor(unusedPages.length / 2)).forEach((p) => {
-                p.page.close().catch(() => {});
-                pagePool = pagePool.filter((pp) => pp !== p);
-            });
-        }
-    }
-}, 30000);
+}, 60000);

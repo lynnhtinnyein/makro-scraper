@@ -173,9 +173,6 @@ app.post(
             let addedCount = 0;
             const errors: Array<{ url: string; error: string }> = [];
 
-            const BATCH_CONCURRENCY = 2;
-            const DELAY_BETWEEN_BATCHES = 500;
-
             for (const group of productGroups) {
                 const {
                     productUrls,
