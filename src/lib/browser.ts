@@ -2,8 +2,8 @@ import puppeteer, { Browser, Page } from "puppeteer-core";
 import { execSync } from "child_process";
 import * as os from "os";
 
-const POOL_SIZE = 4;
-const MAX_PAGE_REUSES = 10;
+const POOL_SIZE = 6;
+const MAX_PAGE_REUSES = 15;
 const PAGE_TIMEOUT = 45000;
 const BROWSER_RECONNECT_DELAY = 2000;
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -187,7 +187,7 @@ export async function getPage(): Promise<Page> {
         return page;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     return getPage();
 }
 
@@ -240,7 +240,7 @@ export async function closeAll(): Promise<void> {
 
 setInterval(() => {
     const now = Date.now();
-    const stalePeriod = 180000;
+    const stalePeriod = 300000;
 
     pagePool = pagePool.filter((pooledPage) => {
         if (!pooledPage.inUse && now - pooledPage.lastUsed > stalePeriod) {
