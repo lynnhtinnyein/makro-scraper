@@ -187,7 +187,7 @@ export async function getPage(): Promise<Page> {
         return page;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     return getPage();
 }
 
