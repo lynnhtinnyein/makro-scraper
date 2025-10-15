@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import http from "http";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -15,7 +15,7 @@ const uatApiUrl = process.env.NEONMALL_UAT_API_URL;
 const prodApiUrl = process.env.NEONMALL_PROD_API_URL;
 const USE_CLUSTERING = process.env.USE_CLUSTERING === "true";
 const numCPUs = os.cpus().length;
-const WORKERS = Math.min(numCPUs, 4);
+const WORKERS = Math.min(numCPUs, 6);
 
 export function getApiUrl(origin?: string): string {
     if (!uatApiUrl || !prodApiUrl) {
@@ -55,12 +55,26 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                     callback(new Error("Not allowed by CORS"));
                 }
             },
-            methods: ["GET", "POST"]
+            methods: ["GET", "POST"],
+            credentials: true
         })
     );
 
     app.use(express.json({ limit: "10mb" }));
     app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        res.setHeader("X-Worker-PID", String(process.pid));
+        next();
+    });
+
+    const asyncHandler = (
+        fn: (req: Request, res: Response, next: NextFunction) => Promise<any>
+    ) => {
+        return (req: Request, res: Response, next: NextFunction) => {
+            Promise.resolve(fn(req, res, next)).catch(next);
+        };
+    };
 
     app.get("/health", async (_req: Request, res: Response) => {
         res.status(200).json({
@@ -68,6 +82,10 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             status: "ok",
             poolSize: getPoolSize(),
             worker: process.pid,
+            memory: {
+                used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+                total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024)
+            },
             endpoints: {
                 searchProducts: "/api/products/search",
                 scrapeProduct: "/api/products/scrape",
@@ -77,55 +95,59 @@ if (USE_CLUSTERING && cluster.isPrimary) {
         });
     });
 
-    app.post("/api/products/search", async (req: Request, res: Response) => {
-        const { url, max } = req.body as { url?: string; max?: string | number };
-        const maxProducts = Math.min(parseInt(String(max)) || 20, 20);
+    app.post(
+        "/api/products/search",
+        asyncHandler(async (req: Request, res: Response) => {
+            const { url, max } = req.body as { url?: string; max?: string | number };
+            const maxProducts = Math.min(parseInt(String(max)) || 20, 20);
 
-        if (!url) return res.status(400).json({ error: "URL parameter is required" });
+            if (!url) {
+                res.status(400).json({ error: "URL parameter is required" });
+                return;
+            }
 
-        try {
             const products = await scrapeProductList(url, maxProducts);
             res.json(products);
-        } catch (error: any) {
-            console.error("Product search endpoint error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
+        })
+    );
 
-    app.post("/api/products/scrape", async (req: Request, res: Response) => {
-        const { url } = req.body as { url?: string };
+    app.post(
+        "/api/products/scrape",
+        asyncHandler(async (req: Request, res: Response) => {
+            const { url } = req.body as { url?: string };
 
-        if (!url) return res.status(400).json({ error: "URL parameter is required" });
+            if (!url) {
+                res.status(400).json({ error: "URL parameter is required" });
+                return;
+            }
 
-        try {
             const detailRaw = await scrapeProductDetail(url);
             const transformedProduct = transformProductData(detailRaw);
             res.json(transformedProduct);
-        } catch (error: any) {
-            console.error("Product scrape endpoint error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
+        })
+    );
 
-    app.post("/api/products/submit-single", async (req: Request, res: Response) => {
-        const {
-            token,
-            product,
-            mainCategoryId,
-            subCategoryId,
-            categoryId,
-            sellerId,
-            productAttributeValueId
-        } = req.body as any;
+    app.post(
+        "/api/products/submit-single",
+        asyncHandler(async (req: Request, res: Response) => {
+            const {
+                token,
+                product,
+                mainCategoryId,
+                subCategoryId,
+                categoryId,
+                sellerId,
+                productAttributeValueId
+            } = req.body as any;
 
-        if (!token || !product) {
-            return res.status(400).json({ error: "Token and product data are required" });
-        }
+            if (!token || !product) {
+                res.status(400).json({ error: "Token and product data are required" });
+                return;
+            }
 
-        const origin = req.get("origin") || req.get("referer");
-        const apiUrl = getApiUrl(origin);
+            const origin = req.get("origin") || req.get("referer");
+            const apiUrl = getApiUrl(origin);
 
-        try {
             const productId = await submitProduct(
                 token,
                 product,
@@ -139,26 +161,25 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             }
 
             res.json({ success: true, productId });
-        } catch (error: any) {
-            console.error("Submit single product error:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
+        })
+    );
 
-    app.post("/api/products/submit-batch", async (req: Request, res: Response) => {
-        const { token, productGroups } = req.body as any;
+    app.post(
+        "/api/products/submit-batch",
+        asyncHandler(async (req: Request, res: Response) => {
+            const { token, productGroups } = req.body as any;
 
-        if (!token || !productGroups || !Array.isArray(productGroups)) {
-            return res.status(400).json({ error: "Token and productGroups are required" });
-        }
+            if (!token || !productGroups || !Array.isArray(productGroups)) {
+                res.status(400).json({ error: "Token and productGroups are required" });
+                return;
+            }
 
-        const origin = req.get("origin") || req.get("referer");
-        const apiUrl = getApiUrl(origin);
+            const origin = req.get("origin") || req.get("referer");
+            const apiUrl = getApiUrl(origin);
 
-        let addedCount = 0;
-        const errors: Array<{ url: string; error: string }> = [];
+            let addedCount = 0;
+            const errors: Array<{ url: string; error: string }> = [];
 
-        try {
             for (const group of productGroups) {
                 const {
                     productUrls,
@@ -173,36 +194,27 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                     continue;
                 }
 
-                const concurrency = 3;
+                const concurrency = 4;
                 for (let i = 0; i < productUrls.length; i += concurrency) {
                     const batch = productUrls.slice(i, i + concurrency);
                     const results = await Promise.allSettled(
                         batch.map(async (productUrl: string) => {
-                            try {
-                                const detailRaw = await scrapeProductDetail(productUrl);
-                                const product = transformProductData(detailRaw);
+                            const detailRaw = await scrapeProductDetail(productUrl);
+                            const product = transformProductData(detailRaw);
 
-                                const productId = await submitProduct(
-                                    token,
-                                    product,
-                                    { mainCategoryId, subCategoryId, categoryId, sellerId },
-                                    productAttributeValueId,
-                                    apiUrl
-                                );
+                            const productId = await submitProduct(
+                                token,
+                                product,
+                                { mainCategoryId, subCategoryId, categoryId, sellerId },
+                                productAttributeValueId,
+                                apiUrl
+                            );
 
-                                if (productId && product.images?.length > 0) {
-                                    await uploadProductImages(
-                                        token,
-                                        productId,
-                                        product.images,
-                                        apiUrl
-                                    );
-                                }
-
-                                return { success: true, url: productUrl };
-                            } catch (err: any) {
-                                throw new Error(err.message || "Failed to process product");
+                            if (productId && product.images?.length > 0) {
+                                await uploadProductImages(token, productId, product.images, apiUrl);
                             }
+
+                            return { success: true, url: productUrl };
                         })
                     );
 
@@ -224,11 +236,12 @@ if (USE_CLUSTERING && cluster.isPrimary) {
             }
 
             if (errors.length > 0 && addedCount === 0) {
-                return res.status(400).json({
+                res.status(400).json({
                     error: "All products failed to submit",
                     addedCount: 0,
                     errors
                 });
+                return;
             }
 
             const statusCode = errors.length > 0 ? 207 : 200;
@@ -236,33 +249,33 @@ if (USE_CLUSTERING && cluster.isPrimary) {
                 addedCount,
                 errors: errors.length > 0 ? errors : undefined
             });
-        } catch (error: any) {
-            console.error("Submit batch products error:", error);
-            res.status(500).json({
-                error: error.message || "Internal server error",
-                addedCount,
-                errors: errors.length > 0 ? errors : undefined
-            });
-        }
-    });
+        })
+    );
 
-    app.get("/close", async (_req: Request, res: Response) => {
-        try {
+    app.get(
+        "/close",
+        asyncHandler(async (_req: Request, res: Response) => {
             await closeAll();
             res.json({ success: true, message: "Browser closed successfully" });
-        } catch (error: any) {
-            res.status(500).json({ success: false, error: error.message });
-        }
+        })
+    );
+
+    app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+        console.error("Error:", err);
+        res.status(500).json({
+            error: err.message || "Internal server error",
+            path: req.path
+        });
     });
 
     const server = http.createServer(app);
     const PORT = process.env.PORT || 4000;
     const hostUrl = process.env.HOST_URL || "0.0.0.0";
-    const version = process.env.VERSION || "1.0.0";
+    const version = process.env.VERSION || "2.2.0";
 
-    server.timeout = 120000;
-    server.keepAliveTimeout = 65000;
-    server.headersTimeout = 66000;
+    server.timeout = 180000;
+    server.keepAliveTimeout = 75000;
+    server.headersTimeout = 76000;
 
     server.listen(PORT as number, hostUrl as string, () => {
         console.log(`========================================`);
@@ -272,18 +285,35 @@ if (USE_CLUSTERING && cluster.isPrimary) {
         console.log(`========================================`);
     });
 
-    process.on("SIGINT", async () => {
-        console.log("\nShutting down...");
-        await closeAll();
-        process.exit(0);
-    });
+    let isShuttingDown = false;
 
-    process.on("SIGTERM", async () => {
-        console.log("\nSIGTERM received. Shutting down gracefully...");
-        await closeAll();
-        server.close(() => {
-            console.log("Server closed");
+    const gracefulShutdown = async (signal: string) => {
+        if (isShuttingDown) return;
+        isShuttingDown = true;
+
+        console.log(`\n${signal} received. Shutting down gracefully...`);
+
+        server.close(async () => {
+            console.log("HTTP server closed");
+            await closeAll();
+            console.log("Browser pool closed");
             process.exit(0);
         });
+
+        setTimeout(() => {
+            console.error("Forced shutdown after timeout");
+            process.exit(1);
+        }, 30000);
+    };
+
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+    process.on("uncaughtException", (err) => {
+        console.error("Uncaught Exception:", err);
+    });
+
+    process.on("unhandledRejection", (reason, promise) => {
+        console.error("Unhandled Rejection at:", promise, "reason:", reason);
     });
 }

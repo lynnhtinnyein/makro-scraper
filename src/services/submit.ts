@@ -1,26 +1,50 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
 import http from "http";
 import https from "https";
 import { CategoryIds, TransformedProduct } from "../types";
 
-const axiosInstance = axios.create({
-    timeout: 20000,
-    maxRedirects: 3,
-    httpAgent: new http.Agent({
-        keepAlive: true,
-        maxSockets: 50,
-        maxFreeSockets: 10,
-        timeout: 20000,
-        keepAliveMsecs: 30000
-    }),
-    httpsAgent: new https.Agent({
-        keepAlive: true,
-        maxSockets: 50,
-        maxFreeSockets: 10,
-        timeout: 20000,
-        keepAliveMsecs: 30000
-    })
+const httpAgent = new http.Agent({
+    keepAlive: true,
+    maxSockets: 100,
+    maxFreeSockets: 20,
+    timeout: 25000,
+    keepAliveMsecs: 60000
 });
+
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 100,
+    maxFreeSockets: 20,
+    timeout: 25000,
+    keepAliveMsecs: 60000
+});
+
+const axiosInstance: AxiosInstance = axios.create({
+    timeout: 25000,
+    maxRedirects: 3,
+    httpAgent,
+    httpsAgent,
+    validateStatus: (status) => status < 500
+});
+
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        if (error.code === "ECONNRESET" || error.code === "ETIMEDOUT") {
+            if (!error.config.__retryCount) {
+                error.config.__retryCount = 0;
+            }
+            if (error.config.__retryCount < 2) {
+                error.config.__retryCount++;
+                await new Promise((resolve) =>
+                    setTimeout(resolve, 1000 * error.config.__retryCount)
+                );
+                return axiosInstance.request(error.config);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
 
 export async function submitProduct(
     token: string,
@@ -106,17 +130,13 @@ export async function submitProduct(
                 message = error.response.statusText || "Request failed";
             }
 
-            throw new Error(`Product Submit Error (${status}): ${message} : to ${apiUrl}`);
+            throw new Error(`Product Submit Error (${status}): ${message}`);
         } else if (error.request) {
-            throw new Error(
-                `No response from server: ${error.message || "Network error"} : to ${apiUrl}`
-            );
+            throw new Error(`No response from server: ${error.message || "Network error"}`);
         } else if (error.message) {
-            throw new Error(`Request setup failed: ${error.message} : to ${apiUrl}`);
+            throw new Error(`Request setup failed: ${error.message}`);
         } else {
-            throw new Error(
-                `Unknown product submission error: ${JSON.stringify(error)} : to ${apiUrl}`
-            );
+            throw new Error(`Unknown product submission error: ${JSON.stringify(error)}`);
         }
     }
 }
@@ -133,7 +153,7 @@ export async function uploadProductImages(
 }> {
     const maxImages = 8;
     const imagesToUpload = imageUrls.slice(0, maxImages);
-    const concurrency = 5;
+    const concurrency = 8;
     const errors: Array<{ imageUrl: string; error: string; statusCode?: number; response?: any }> =
         [];
     let uploadedCount = 0;
@@ -157,7 +177,7 @@ export async function uploadProductImages(
                                     Authorization: `Bearer ${token}`,
                                     "Content-Type": "application/json"
                                 },
-                                timeout: 20000
+                                timeout: 25000
                             }
                         );
                         return { success: true, imageUrl };

@@ -3,9 +3,6 @@ import { getPage, releasePage } from "../lib/browser";
 import { delay } from "../lib/utils";
 import { ProductDetailRaw } from "../types";
 
-const RESOURCE_CACHE = new Map<string, any>();
-const CACHE_TTL = 300000;
-
 export async function scrapeProductList(
     url: string,
     maxProducts = 20
@@ -20,25 +17,27 @@ export async function scrapeProductList(
     }>
 > {
     const page = await getPage();
+    const requestHandler = (req: any) => {
+        const resourceType = req.resourceType();
+        if (resourceType === "image" || resourceType === "font" || resourceType === "media") {
+            req.abort().catch(() => {});
+        } else {
+            req.continue().catch(() => {});
+        }
+    };
+
     try {
+        await page.setRequestInterception(true);
+        page.on("request", requestHandler);
+
         await page.goto(url, {
             waitUntil: "domcontentloaded",
             timeout: 30000
         });
 
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-            const resourceType = req.resourceType();
-            if (resourceType === "image" || resourceType === "font" || resourceType === "media") {
-                req.abort();
-            } else {
-                req.continue();
-            }
-        });
-
-        await delay(1500);
+        await delay(1200);
         await autoScroll(page, 2000, 100, 300);
-        await delay(1000);
+        await delay(800);
 
         const products = await page.evaluate((max) => {
             const results: Array<{
@@ -165,32 +164,38 @@ export async function scrapeProductList(
         }, maxProducts);
 
         return products;
+    } catch (error) {
+        throw error;
     } finally {
+        page.removeAllListeners("request");
+        await page.setRequestInterception(false).catch(() => {});
         releasePage(page);
     }
 }
 
 export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw> {
     const page = await getPage();
+    const requestHandler = (req: any) => {
+        const resourceType = req.resourceType();
+        if (resourceType === "font" || resourceType === "media") {
+            req.abort().catch(() => {});
+        } else {
+            req.continue().catch(() => {});
+        }
+    };
+
     try {
         await page.setRequestInterception(true);
-        page.on("request", (req) => {
-            const resourceType = req.resourceType();
-            if (resourceType === "font" || resourceType === "media") {
-                req.abort();
-            } else {
-                req.continue();
-            }
-        });
+        page.on("request", requestHandler);
 
         await page.goto(url, {
             waitUntil: "domcontentloaded",
             timeout: 30000
         });
 
-        await delay(2000);
-        await autoScroll(page, 3000, 50, 200);
         await delay(1500);
+        await autoScroll(page, 3000, 50, 200);
+        await delay(1000);
 
         const productDetail = await page.evaluate(() => {
             const getText = (selector: string): string => {
@@ -407,7 +412,11 @@ export async function scrapeProductDetail(url: string): Promise<ProductDetailRaw
         });
 
         return productDetail as ProductDetailRaw;
+    } catch (error) {
+        throw error;
     } finally {
+        page.removeAllListeners("request");
+        await page.setRequestInterception(false).catch(() => {});
         releasePage(page);
     }
 }
