@@ -23,6 +23,9 @@ export interface TransformedProduct {
     url: string;
     images: string[];
     variant: ProductVariant;
+    originalPrice: number;
+    discountedPrice: number;
+    discountPercent: number;
 }
 
 export interface ProductDetailRaw {

@@ -12,7 +12,7 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
         brand: details.brand || null,
         url: cleanUpUrl(details.url),
         images: details.images || [],
-        description: details.description === "" ? details.title : details.description,
+        description: details.title,
         variant: {
             image: details.images?.[0] || null,
             price: details.originalPrice,
@@ -22,6 +22,11 @@ export function transformProductData(details: ProductDetailRaw): TransformedProd
             width: dimensions.width,
             height: dimensions.height,
             weight: dimensions.weight
-        }
+        },
+
+        //just for info
+        originalPrice: details.originalPrice,
+        discountedPrice: details.discountedPrice,
+        discountPercent: details.discountPercent || 0
     };
 }
